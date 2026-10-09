@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fridas Food Roulette</title>
+<style>
+  :root { --ink:#171717; --cream:#fff4dc; }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; min-height:100vh; display:grid; place-items:center; padding:24px 14px;
+    background:radial-gradient(circle at top, #fff8e8, #f1e5d0 72%, #e6d4b9);
+    color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  .app { width:min(100%,620px); text-align:center; }
+  h1 { margin:0 0 6px; font-size:clamp(2rem,7vw,3.2rem); line-height:1.05; letter-spacing:-.04em; }
+  .sub { margin:0 0 22px; color:#5e5142; font-size:1rem; }
+  .wheel-wrap { position:relative; width:min(90vw,500px); aspect-ratio:1; margin:0 auto 22px; }
+  .pointer {
+    position:absolute; z-index:5; left:50%; top:-7px; transform:translateX(-50%);
+    width:0;height:0;border-left:22px solid transparent;border-right:22px solid transparent;
+    border-top:48px solid #ef392f; filter:drop-shadow(0 3px 2px #0008);
+  }
+  .pointer:before {
+    content:""; position:absolute; left:-11px; top:-47px; width:22px;height:22px;
+    border-radius:50%; background:#ff786d; border:4px solid #202020;
+  }
+  .rim {
+    position:absolute; inset:0; border-radius:50%; padding:13px;
+    background:linear-gradient(135deg,#555,#111 25%,#333 55%,#080808);
+    box-shadow:0 12px 24px #47321f44, inset 0 0 0 3px #050505;
+  }
+  .wheel {
+    position:relative; width:100%;height:100%;border-radius:50%;
+    border:4px solid #171717;
+    background:conic-gradient(from -90deg, #ffb51b 0deg 120deg, #168ed5 120deg 240deg, #ef3027 240deg 360deg);
+    transition:transform 5s cubic-bezier(.12,.72,.12,1);
+    overflow:hidden;
+  }
+  .wheel:after { content:""; position:absolute; inset:0; border-radius:50%; border:2px solid #ffffff66; pointer-events:none; }
+  .divider { position:absolute; left:50%;top:50%;width:3px;height:50%;background:#151515;transform-origin:top center; }
+  .divider.d1 { transform:rotate(30deg); } /* wheel labels are positioned for a three-slice layout */
+  .hub {
+    position:absolute; z-index:3; width:37%; aspect-ratio:1; border-radius:50%; left:50%;top:50%;
+    transform:translate(-50%,-50%); display:grid;place-items:center;padding:12px;
+    background:radial-gradient(circle at 35% 25%,#303030,#101010 72%);
+    border:7px solid #f4c64e; box-shadow:0 0 0 4px #151515,0 5px 10px #0007;
+    color:var(--cream); font-weight:900; line-height:1.02; font-size:clamp(1rem,4.2vw,1.65rem);
+    text-shadow:0 2px 1px #000; transform-origin:center;
+  }
+  .hub span { display:block; color:#ffc83d; }
+  .food { position:absolute; width:42%; text-align:center; font-weight:900; line-height:1.05; font-size:clamp(.85rem,3.4vw,1.25rem); z-index:2; text-shadow:0 1px #fff7; }
+  .food .emoji { display:block; font-size:clamp(2.4rem,10vw,4.4rem); margin-bottom:7px; filter:drop-shadow(0 4px 2px #0003); }
+  .food.risotto { left:3%; top:22%; transform:rotate(-14deg); }
+  .food.eggs { right:1%; top:22%; transform:rotate(14deg); }
+  .food.burger { left:29%; bottom:3%; width:42%; transform:rotate(1deg); }
+  button {
+    border:0; border-radius:999px; padding:16px 36px; background:#171717;color:#fff4dc;
+    font-weight:900; font-size:1.2rem; letter-spacing:.08em; cursor:pointer;
+    box-shadow:0 5px 0 #8d2922,0 8px 16px #0002; transition:transform .12s, opacity .12s;
+  }
+  button:hover { transform:translateY(-2px); } button:active { transform:translateY(3px); box-shadow:0 2px 0 #8d2922; }
+  button:disabled { opacity:.65;cursor:wait; }
+  #result { min-height:3.3em; margin:20px 0 0; font-size:clamp(1.15rem,4vw,1.65rem);font-weight:900; }
+  .hint { margin:4px 0 0;color:#6e5d49;font-size:.9rem; }
+  @media (prefers-reduced-motion:reduce) { .wheel { transition-duration:1s; } }
+</style>
+</head>
+<body>
+<main class="app">
+  <h1>Fridas Food Roulette</h1>
+  <p class="sub">Let the wheel decide what’s for dinner!</p>
+  <div class="wheel-wrap" aria-label="Food roulette wheel">
+    <div class="pointer" aria-hidden="true"></div>
+    <div class="rim">
+      <div class="wheel" id="wheel">
+        <div class="food risotto"><span class="emoji">🍚</span>Risotto</div>
+        <div class="food eggs"><span class="emoji">🍳</span>Eggs Benedicts</div>
+        <div class="food burger"><span class="emoji">🍔</span>Hamburger</div>
+      </div>
+    </div>
+    <div class="hub">Fridas <span>food</span> Roulette</div>
+  </div>
+  <button id="spin">🎡 SPIN THE WHEEL</button>
+  <p id="result" role="status" aria-live="polite">Ready? Give it a spin!</p>
+  <p class="hint">Three foods. One dinner decision. No arguing 😉</p>
+</main>
+<script>
+(() => {
+  const wheel = document.getElementById('wheel');
+  const button = document.getElementById('spin');
+  const result = document.getElementById('result');
+  const foods = ['Risotto', 'Eggs Benedicts', 'Hamburger'];
+  let rotation = 0, spinning = false;
+  button.addEventListener('click', () => {
+    if (spinning) return;
+    spinning = true;
+    button.disabled = true;
+    result.textContent = 'Spinning... 🤞';
+    const winner = Math.floor(Math.random() * foods.length);
+    // Pointer is at the top. Aim the center of the chosen 120-degree slice at it.
+    const sliceCenter = winner * 120 + 60;
+    const current = ((rotation % 360) + 360) % 360;
+    const targetMod = (360 - sliceCenter + 360) % 360;
+    const extra = (targetMod - current + 360) % 360;
+    rotation += 360 * (5 + Math.floor(Math.random() * 3)) + extra;
+    wheel.style.transform = `rotate(${rotation}deg)`;
+    wheel.addEventListener('transitionend', function done() {
+      wheel.removeEventListener('transitionend', done);
+      result.textContent = `🎉 TONIGHT'S WINNER: ${foods[winner].toUpperCase()}!`;
+      button.textContent = '🔄 SPIN AGAIN';
+      button.disabled = false;
+      spinning = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>
